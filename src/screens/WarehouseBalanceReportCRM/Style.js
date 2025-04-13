@@ -229,6 +229,13 @@ li{
     font-weight: 500;
     line-height: 24px; 
   }
+  .block-image{
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    right: 10px;
+  }
   .right-dropdown{
     outline:none;
     border:none;
@@ -584,6 +591,10 @@ line-height: normal;
 }
 .w-30{
   width: 30%;
+}
+
+.limit-block{
+  position: relative;
 }
 `;
 export default Style;

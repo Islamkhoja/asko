@@ -71,7 +71,12 @@ const Login = () => {
       .then(({ data }) => {
         dispatch(setMe(data));
         setLoading(false)
-        navigate('/home');
+         if (['Cashier', "SalesPerson"].includes(get(data, 'data.U_role'))) {
+          navigate('/home');
+        }
+        else {
+          navigate('/warehouse-balance-report-crm');
+        }
       })
       .catch(err => {
         console.log(err, ' bu err')

@@ -18,7 +18,7 @@ import { FadeLoader } from "react-spinners";
 import LazyLoad from "react-lazyload";
 import { ErrorModal, ConfirmModal, FilterModal, WarningModal, BusinessPartner, ImageModal, FilterModalReport } from '../../components/Modal';
 import { Spinner } from '../../components';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { FixedSizeList as List } from 'react-window';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -27,6 +27,7 @@ import moment from 'moment';
 import rightButton from '../../assets/images/right.svg';
 import { validate } from 'uuid';
 import { exportTableToExcel } from './excel';
+import { main } from '../../store/slices';
 
 let url = process.env.REACT_APP_API_URL
 
@@ -49,10 +50,14 @@ let merchants = {
 const WarehouseBalanceReport = () => {
   const { getMe } = useSelector(state => state.main);
 
+  const dispatch = useDispatch();
+  const { setMe } = main.actions;
+
   let { id } = useParams();
   let location = useLocation();
   const navigate = useNavigate();
   const [warehouses, setWarehouses] = useState([])
+  const [warehousesValue, setWarehousesValue] = useState('')
   const [whShow, setWhShow] = useState(false)
   const [selectWh, setSelectWh] = useState({})
   let [color, setColor] = useState("#3C3F47");
@@ -111,6 +116,7 @@ const WarehouseBalanceReport = () => {
 
   const [filterProperty, setFilterProperty] = useState({})
   const [filterPropertyResize, setFilterPropertyResize] = useState({})
+  const [rate, setRate] = useState({ Rate: 13000 })
 
   const errorRef = useRef();
   const warningRef = useRef();
@@ -151,8 +157,28 @@ const WarehouseBalanceReport = () => {
     filterRef.current?.open(filterData);
   }
 
+  const getCurrency = () => {
+    axios
+      .get(
+        url + `/api/getCurrency`,
+        {
+          headers: {
+            'Authorization': `Bearer ${get(getMe, 'token')}`,
+          }
+        }
+      )
+      .then(({ data }) => {
+        setRate(data)
+        dispatch(setMe({ ...getMe, currency: data }));
+      })
+      .catch(err => {
+        errorNotify(`Valyuta yuklashda muomo yuzaga keldi`)
+      });
 
+    return;
+  }
   useEffect(() => {
+    getCurrency()
     getUfd()
 
     getMerchant()
@@ -305,6 +331,7 @@ const WarehouseBalanceReport = () => {
 
   const getItems = (pagination) => {
     setLoading(true)
+
     let { link } = subQuery(get(pagination, 'filterProperty', {}))
     axios
       .get(
@@ -316,6 +343,7 @@ const WarehouseBalanceReport = () => {
         }
       )
       .then(async ({ data }) => {
+        let rateCurrency = get(rate, 'Rate', 13000)
         if (get(docEntry, 'id') && !get(docEntry, 'status')) {
           getOrderByDocEntry(get(docEntry, 'id', 0)).then(async orderData => {
             let marchants = []
@@ -352,10 +380,10 @@ const WarehouseBalanceReport = () => {
             setAllPageLength(get(data, '[0].LENGTH', 0) - orderData.Items.length)
 
             setMainData(data.map(item => {
-              return { ...item, value: '', Discount: '', PriceList: { ...item.PriceList, Price: roundMiddle(Number(get(item, 'PriceList.Price', 0)) * get(getMe, 'currency.Rate')) } }
+              return { ...item, value: '', Discount: '', PriceList: { ...item.PriceList, Price: roundMiddle(Number(get(item, 'PriceList.Price', 0)) * rateCurrency) } }
             }).filter(el => !orderData.Items.map(item => item.ItemCode).includes(get(el, 'ItemCode'))))
             setClone(data.map(item => {
-              return { ...item, value: '', Discount: '', PriceList: { ...item.PriceList, Price: roundMiddle(Number(get(item, 'PriceList.Price', 0)) * get(getMe, 'currency.Rate')) } }
+              return { ...item, value: '', Discount: '', PriceList: { ...item.PriceList, Price: roundMiddle(Number(get(item, 'PriceList.Price', 0)) * rateCurrency) } }
             }).filter(el => !orderData.Items.map(item => item.ItemCode).includes(get(el, 'ItemCode'))))
 
             setState(orderData.Items.map(item => {
@@ -364,15 +392,15 @@ const WarehouseBalanceReport = () => {
               return {
                 ...el, PriceList: {
                   ...el.PriceList, Price: roundMiddle(
-                    roundMiddle(Number(el.PriceList.Price || 1) * get(getMe, 'currency.Rate', 0)) +
-                    roundMiddle(((el.PriceList.Price || 1) * get(getMe, 'currency.Rate')) * (get(orderData, 'U_merchantfoizi', 1) || 1) / 100))
+                    roundMiddle(Number(el.PriceList.Price || 1) * rateCurrency) +
+                    roundMiddle(((el.PriceList.Price || 1) * rateCurrency) * (get(orderData, 'U_merchantfoizi', 1) || 1) / 100))
                 }
               }
             }))
 
 
             setActualData(orderData.Items.map(item => {
-              return { ...item, value: Number(item.Quantity).toString(), PriceList: { ...item.PriceList, Price: roundMiddle(Number(item.PriceList.Price || 0) * get(getMe, 'currency.Rate')) } }
+              return { ...item, value: Number(item.Quantity).toString(), PriceList: { ...item.PriceList, Price: roundMiddle(Number(item.PriceList.Price || 0) * rateCurrency) } }
             }))
 
           })
@@ -380,10 +408,10 @@ const WarehouseBalanceReport = () => {
         else {
           setLoading(false)
           setMainData(data.map(item => {
-            return { ...item, value: '', Discount: '', PriceList: { ...item.PriceList, Price: roundMiddle(Number(get(item, 'PriceList.Price', 0)) * get(getMe, 'currency.Rate')) } }
+            return { ...item, value: '', Discount: '', PriceList: { ...item.PriceList, Price: roundMiddle(Number(get(item, 'PriceList.Price', 0)) * rateCurrency) } }
           }))
           setClone(data.map(item => {
-            return { ...item, value: '', Discount: '', PriceList: { ...item.PriceList, Price: roundMiddle(Number(get(item, 'PriceList.Price', 0)) * get(getMe, 'currency.Rate')) } }
+            return { ...item, value: '', Discount: '', PriceList: { ...item.PriceList, Price: roundMiddle(Number(get(item, 'PriceList.Price', 0)) * rateCurrency) } }
           }))
           setAllPageLength(get(data, '[0].LENGTH', 0))
 
@@ -475,9 +503,10 @@ const WarehouseBalanceReport = () => {
       .then(({ data }) => {
         if (data.length) {
           setSelectWh({ WhsCode: get(getMe, 'data.U_branch'), WhsName: data.find(el => el.WhsCode == get(getMe, 'data.U_branch'))?.WhsName })
+          setWarehousesValue(`${get(getMe, 'data.U_branch')} - ${data.find(el => el.WhsCode == get(getMe, 'data.U_branch'))?.WhsName}`)
         }
 
-        setWarehouses(data)
+        setWarehouses({ data, search: data })
       })
       .catch(err => {
         if (get(err, 'response.status') == 401) {
@@ -529,18 +558,34 @@ const WarehouseBalanceReport = () => {
                   </h3>
                 </div>
                 <div className='right-limit'>
-                  <button disabled={get(docEntry, 'id')} style={{ width: "200px" }} onClick={() => setWhShow(!whShow)} className='right-dropdown'>
-                    <p className='right-limit-text'>{get(selectWh, 'WhsCode')} - {get(selectWh, 'WhsName')}</p>
-                    <img src={arrowDown} className={whShow ? "up-arrow" : ""} alt="arrow-down-img" />
-                  </button>
+                  <div className='limit-block'>
+                    <input onChange={(e) => {
+                      let inpText = e.target.value
+                      setWhShow(true);
+
+                      if (inpText !== '') {
+                        setWarehouses({
+                          ...warehouses, search: get(warehouses, 'data', []).filter(el => {
+                            return get(el, 'WhsCode', '').toLowerCase().includes(inpText.toLowerCase()) || get(el, 'WhsName', '').toLowerCase().includes(inpText.toLowerCase())
+                          })
+                        })
+                      }
+                      else {
+                        setWarehouses({ search: get(warehouses, 'data', []), data: get(warehouses, 'data', []) })
+                      }
+                      setWarehousesValue(inpText)
+                    }} onClick={() => setWhShow(!whShow)} disabled={get(docEntry, 'id')} style={{ width: "200px" }} className='right-dropdown' type="text" value={warehousesValue} />
+                    <img onClick={() => setWhShow(!whShow)} src={arrowDown} className={whShow ? "block-image up-arrow" : "block-image"} alt="arrow-down-img" />
+                  </div>
 
                   <ul style={{ zIndex: 1 }} className={`dropdown-menu ${whShow ? "display-b" : "display-n"}`} aria-labelledby="dropdownMenuButton1">
                     {
-                      [{ WhsCode: 'ALL', WhsName: "Hammasi" }, ...warehouses].map((item, i) => {
+                      [{ WhsCode: 'ALL', WhsName: "Hammasi" }, ...get(warehouses, 'search', [])].map((item, i) => {
                         return (<li key={i} onClick={() => {
                           if (get(selectWh, 'WhsCode') != item.WhsCode) {
                             setWhShow(false);
                             setSelectWh(item)
+                            setWarehousesValue(`${get(item, 'WhsCode')} - ${get(item, 'WhsName')}`)
                             getItems({ page, limit, value: search, filterProperty, whsCode: item.WhsCode })
                           }
                           return
@@ -555,11 +600,10 @@ const WarehouseBalanceReport = () => {
                   }
                   } className={`right-dropdown`}>
                     <p className='right-limit-text'>{get(customerDataInvoice, 'selectMerchantId') || 'Naqd'} - {get(customerDataInvoice, 'selectMarchantFoiz', 0) || 0} %</p>
-                    <img src={arrowDown} className={showDropDownMerchant ? "up-arrow" : ""} alt="arrow-down-img" />
                   </button>
-                  <ul style={{ zIndex: 1, width: '240px' }} className={`dropdown-menu  ${(showDropDownMerchant) ? "display-b" : "display-n"}`} aria-labelledby="dropdownMenuButton1">
+                  {/* <ul style={{ zIndex: 1, width: '240px' }} className={`dropdown-menu  ${(showDropDownMerchant) ? "display-b" : "display-n"}`} aria-labelledby="dropdownMenuButton1">
                     {
-                      [...merchantList.filter(item => item.U_status == '01').sort((a, b) => Number(a.U_Foiz) - Number(b.U_Foiz))].map((item, i) => {
+                      [...merchantList.filter(item => item.U_status == '01' && item.selectMerchantId == 'Naqd').sort((a, b) => Number(a.U_Foiz) - Number(b.U_Foiz))].map((item, i) => {
 
                         return (<li style={{ height: '30px' }} key={i} onClick={() => {
                           if (get(customerDataInvoice, 'selectMerchantId') != get(item, 'U_merchant')) {
@@ -579,7 +623,7 @@ const WarehouseBalanceReport = () => {
                         }} className={`dropdown-li ${get(customerDataInvoice, 'selectMerchantId') == get(item, 'U_merchant') ? 'dropdown-active' : ''}`}><a className="dropdown-item" href="#">{get(item, 'U_merchant') || 'Naqd'} - {get(item, 'U_Foiz', '0') || 0} %</a></li>)
                       })
                     }
-                  </ul>
+                  </ul> */}
                 </div>
                 <div className='d-flex align justify'>
                   <div className='right-head order-head-filter'>
@@ -682,7 +726,7 @@ const WarehouseBalanceReport = () => {
                                     <p className='table-body-text' >
                                       {
                                         get(item, 'OnHand.ListName', '')} - {
-                                        warehouses.find(el => get(el, 'WhsCode') == get(item, 'OnHand.ListName', ''))?.WhsName
+                                        get(warehouses, 'data', []).find(el => get(el, 'WhsCode') == get(item, 'OnHand.ListName', ''))?.WhsName
                                       }
                                     </p>
                                   </div>
